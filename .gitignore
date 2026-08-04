@@ -1,0 +1,14 @@
+# Sesiones y credenciales — NUNCA al repo
+*.session
+*.session-journal
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Runtime
+logs/
+*.log
