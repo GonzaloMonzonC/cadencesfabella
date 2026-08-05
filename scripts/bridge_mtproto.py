@@ -128,12 +128,18 @@ async def _is_allowed(chat):
         return True
     if not ALLOWED_CHATS:
         return False
-    name = (chat.username or "").lower() or str(chat.id)
-    return name in ALLOWED_CHATS
+    cid = str(chat.id)
+    name = (chat.username or "").lower()
+    return cid in ALLOWED_CHATS or name in ALLOWED_CHATS
 
 @client.on(events.NewMessage)
 async def on_new(event):
     msg = event.message
+    # Ignorar SOLO los ecos del propio userbot (respuestas del gateway)
+    # filtrados por message_id registrado en _send (no por msg.out)
+    if msg.out and msg.id in _sent_ids:
+        _sent_ids.pop(msg.id, None)
+        return
     try:
         chat = await event.get_chat()
         if not await _is_allowed(chat):
@@ -165,11 +171,18 @@ def _history(chat_id, limit=50):
     except Exception as e:
         return {"error": str(e)}
 
+# ── Registro de mensajes enviados por el userbot (para filtrar ecos) ─────────
+_sent_ids = {}  # message_id -> timestamp
+
 def _send(chat_id, text):
     async def _s():
         return await client.send_message(chat_id, str(text))
     try:
         sent = run_async(_s())
+        _sent_ids[sent.id] = time.time()
+        # limpieza de registros antiguos (>10 min)
+        for mid in [k for k, t in _sent_ids.items() if time.time() - t > 600]:
+            _sent_ids.pop(mid, None)
         return {"ok": True, "message_id": sent.id}
     except Exception as e:
         return {"ok": False, "error": str(e)}
