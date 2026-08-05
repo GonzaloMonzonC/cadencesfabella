@@ -73,9 +73,10 @@ hermes config set telegram.extra.base_file_url http://localhost:8086
 
 ## Tunnel externo
 
-- CNAME `console.example.com` → tunnel `vm-api` (servicio cloudflared, config.yml ya lo incluye)
-- Proceso independiente de respaldo: `cloudflared tunnel --config fabella.yml run` (tunnel l13)
-- Ver `docs/tunnel.md` para el detalle y el estado del servicio.
+- **OPERATIVO**: https://console.example.com → localhost:8087 (200 verificado)
+- CNAME `console.example.com` → tunnel `vm-api` (config.yml del servicio ya lo incluye)
+- Proceso de usuario de respaldo: `cloudflared tunnel --config config.yml run` (mismo tunnel, cubre los 3 hostnames)
+- vm-api/poli-api siguen en sus rutas reales (/ddp/health, /health) — la raíz `/` de ambos da 404 (no tienen ruta raíz, normal)
 
 ## Privacidad / Seguridad
 
