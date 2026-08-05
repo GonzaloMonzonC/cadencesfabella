@@ -38,7 +38,11 @@ SESSION = os.environ.get(
 )
 BRIDGE_PORT = int(os.environ.get("TG_BRIDGE_PORT", "8086"))
 WEB_PORT = int(os.environ.get("TG_WEB_PORT", "8087"))
-ALLOWED_CHATS = [c.strip().lower() for c in os.environ.get("TG_ALLOWED_CHATS", "").split(",") if c.strip()]
+# Chats permitidos: Saved Messages (siempre) + el chat de your bot (id YOUR_CHAT_ID,
+# el antiguo bot de BotFather — el userbot responde ahí como si fuera el bot)
+# + extras vía TG_ALLOWED_CHATS (usernames o ids separados por coma)
+_BOT_CHAT = os.environ.get("TG_BOT_CHAT_ID", "YOUR_CHAT_ID")
+ALLOWED_CHATS = [_BOT_CHAT] + [c.strip().lower() for c in os.environ.get("TG_ALLOWED_CHATS", "").split(",") if c.strip()]
 
 if not API_ID or not API_HASH:
     print("ERROR: TG_API_ID y TG_API_HASH son obligatorios (my.telegram.org → API development tools)")
