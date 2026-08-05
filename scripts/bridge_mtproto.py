@@ -47,6 +47,22 @@ if not API_ID or not API_HASH:
 client = TelegramClient(SESSION, API_ID, API_HASH)
 loop = None
 
+# ── Token de la interfaz web (se genera la primera vez) ──────────────────────
+TOKEN_PATH = os.path.expanduser("~/.fabella/data/fabella_token.txt")
+WEB_TOKEN = os.environ.get("TG_WEB_TOKEN", "")
+if not WEB_TOKEN:
+    try:
+        if os.path.exists(TOKEN_PATH):
+            WEB_TOKEN = open(TOKEN_PATH).read().strip()
+        else:
+            import secrets
+            WEB_TOKEN = secrets.token_urlsafe(18)
+            os.makedirs(os.path.dirname(TOKEN_PATH), exist_ok=True)
+            open(TOKEN_PATH, "w").write(WEB_TOKEN)
+            print(f"[fabella] 🔑 Token web generado: {WEB_TOKEN} (guardado en {TOKEN_PATH})")
+    except Exception as e:
+        print(f"[fabella] warn: token web no disponible ({e}) — /api/* sin auth")
+
 # ── Cola de updates (long polling compatible con PTB) ─────────────────────────
 _updates = []
 _updates_lock = threading.Lock()
@@ -186,15 +202,20 @@ header .sub{color:var(--dim);font-size:12px}
 <script>
 const chat=document.getElementById('chat'),inp=document.getElementById('inp'),st=document.getElementById('status');
 let last=0;
+let tok=localStorage.getItem('fabella_token');
+if(!tok){tok=prompt('Token de CadencesFaBela:');if(tok)localStorage.setItem('fabella_token',tok);}
+function hdr(){return tok?{'X-Fabella-Token':tok}:{};}
 function add(m){const d=document.createElement('div');d.className='msg '+(m.out?'mine':'theirs');
 const t=document.createElement('span');t.className='t';t.textContent=m.date;
 d.textContent=m.text;d.appendChild(t);chat.appendChild(d);chat.scrollTop=chat.scrollHeight;}
-async function poll(){try{const r=await fetch('/api/history?after='+last);const j=await r.json();
+async function poll(){try{const r=await fetch('/api/history?after='+last,{headers:hdr()});
+if(r.status===401){st.textContent='token incorrecto — recarga y pon el token';return;}
+const j=await r.json();
 if(j.ok){st.textContent='conectado · '+j.chat;for(const m of j.messages||[]){if(m.id>last){add(m);last=m.id;}}}
 else st.textContent='error: '+(j.error||'?');}catch(e){st.textContent='sin conexión con el bridge';}
 setTimeout(poll,2000);}
 async function send(){const t=inp.value.trim();if(!t)return;inp.value='';
-const r=await fetch('/api/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});
+const r=await fetch('/api/send',{method:'POST',headers:{'Content-Type':'application/json',...hdr()},body:JSON.stringify({text:t})});
 const j=await r.json();if(!j.ok)st.textContent='error al enviar: '+(j.error||'?');}
 inp.addEventListener('keydown',e=>{if(e.key==='Enter')send();});
 document.getElementById('btn').addEventListener('click',send);
@@ -224,6 +245,12 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _check_web_auth(self):
+        """/api/* requiere X-Fabella-Token (si WEB_TOKEN está definido)."""
+        if not WEB_TOKEN:
+            return True
+        return self.headers.get("X-Fabella-Token") == WEB_TOKEN
+
     def _method(self):
         parts = self.path.split("?")[0].split("/")
         if len(parts) >= 3 and parts[1].startswith("bot"):
@@ -236,6 +263,9 @@ class Handler(BaseHTTPRequestHandler):
             self._respond(200, WEB_HTML, "text/html; charset=utf-8")
             return
         if p == "/api/history":
+            if not self._check_web_auth():
+                self._respond(401, _err("token requerido (X-Fabella-Token)", 401))
+                return
             from urllib.parse import parse_qs
             qs = parse_qs(self.path.split("?", 1)[1]) if "?" in self.path else {}
             after = int(qs.get("after", ["0"])[0] or 0)
@@ -266,6 +296,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         p = self.path.split("?")[0]
         if p == "/api/send":
+            if not self._check_web_auth():
+                self._respond(401, _err("token requerido (X-Fabella-Token)", 401))
+                return
             try:
                 body = json.loads(self._read_body() or "{}")
             except Exception:
