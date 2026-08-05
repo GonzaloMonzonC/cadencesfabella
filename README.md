@@ -92,3 +92,14 @@ hermes config set telegram.extra.base_file_url http://localhost:8086
 - [ ] Auth en la web (token en /api/*)
 - [ ] Watchdog del bridge (cron)
 - [ ] Multi-chat configurable por contacto
+
+## Versiones estables
+
+| Fecha | Versión | Estado | Notas |
+|---|---|---|---|
+| 2026-08-05 | v0.4 | ✅ **ESTABLE** | Fix mensajes web→gateway (inyección de update en /api/send). Bridge sincronizado con `~/.fabella/scripts/bridge_mtproto.py`. Telegram canal principal verificado de punta a punta (entrada + respuesta en 13.7s). |
+| 2026-08-04 | v0.3 | ✅ estable | Bug filtro anti-eco diagnosticado (pendiente fix) |
+| 2026-08-01 | v0.2 | ✅ estable | Interfaz web + tunnel operativos |
+| 2026-07-28 | v0.1 | ✅ estable | Userbot MTProto inicial |
+
+**Regla de oro** (2026-08-05): el bridge lo gestiona SOLO el watchdog (`watchdog_fabella.py`). No lanzar bridges a mano (duplica procesos y desincroniza la cola de updates). El gateway de Hermes NO se reinicia a la ligera mientras la GUI esté abierta (la GUI lanza el suyo → compiten → muertes sin traceback).
