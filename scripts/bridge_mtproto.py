@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 """
-CadencesFaBela — Userbot MTProto → Bot API local + Interfaz web.
+Fabella — personal-account Telegram transport: MTProto ⇄ local Bot API.
 
-Telegram ha monetizado el Bot API cloud (BotFather vende "peticiones" sin avisar).
-CadencesFaBela usa la CUENTA PERSONAL (Telethon/MTProto) como transporte:
-  - El gateway de Hermes apunta su base_url a http://localhost:8086 y habla el
-    MISMO protocolo HTTP del Bot API (getUpdates/sendMessage/...) — el bridge
-    lo traduce a MTProto. Cero BotFather, cero Stars, cero api.telegram.org.
-  - La interfaz web (http://localhost:8087) permite chatear desde cualquier
-    navegador/teléfono: GET / → chat, GET /api/history → hilo, POST /api/send.
+Telegram started charging for its cloud Bot API (BotFather sells "requests").
+Fabella uses YOUR OWN account (Telethon/MTProto) as the transport instead:
+  - Point any Bot API client (e.g. the Hermes gateway) at http://localhost:8086
+    and it speaks the usual HTTP Bot API (getUpdates/sendMessage/...) — the
+    bridge translates it to MTProto. No BotFather, no api.telegram.org, no fees.
+  - The web console (http://localhost:8087) lets you chat from any
+    browser/phone: GET / → chat, GET /api/history → thread, POST /api/send.
 
-Chat de trabajo por defecto: SAVED MESSAGES ("Mensajes guardados") de tu cuenta.
-Configurable con TG_ALLOWED_CHATS (ids/usernames separados por coma).
+Default working chat: Saved Messages. Extra chats via TG_ALLOWED_CHATS.
 
-Env:
-  TG_API_ID / TG_API_HASH   — de my.telegram.org (API development tools)
-  TG_SESSION                — ruta de sesión (default ~/.fabella/data/telegram_userbot.session)
-  TG_BRIDGE_PORT            — puerto Bot API local (default 8086)
-  TG_WEB_PORT               — puerto interfaz web (default 8087)
-  TG_ALLOWED_CHATS          — chats extra permitidos (vacío = solo Saved Messages)
+Environment:
+  TG_API_ID / TG_API_HASH   — YOUR app credentials from https://my.telegram.org
+  TG_SESSION                — session file path (default ~/.fabella/fabella.session)
+  TG_BRIDGE_PORT            — local Bot API port (default 8086)
+  TG_WEB_PORT               — web console port (default 8087)
+  TG_ALLOWED_CHATS          — extra allowed chats (empty = Saved Messages only)
+  TG_BOT_CHAT_ID            — optional single chat id kept allowed
+  TG_WEB_TOKEN              — token for the web console API (auto-generated if unset)
+  TG_TOKEN_PATH             — where the auto-generated web token is stored
+
+⚠️  Userbot disclaimer: operating a userbot is a grey area of Telegram's ToS.
+    Use at your own risk. Never use official client credentials.
 """
 import asyncio
 import json
@@ -28,31 +33,49 @@ import time
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+
+def _load_dotenv(path=".env"):
+    """Minimal .env loader (KEY=VALUE lines). No dependencies."""
+    if not os.path.isfile(path):
+        return
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        os.environ.setdefault(key.strip(), val.strip())
+
+
+_load_dotenv()
+
 from telethon import TelegramClient, events
 
-API_ID = int(os.environ.get("TG_API_ID", "YOUR_API_ID") or "YOUR_API_ID")
-API_HASH = os.environ.get("TG_API_HASH", "YOUR_API_HASH")
-SESSION = os.environ.get(
-    "TG_SESSION",
-    os.path.expanduser("~/.fabella/data/telegram_userbot.session"),
+_api_id = os.environ.get("TG_API_ID", "")
+API_ID = int(_api_id) if _api_id.isdigit() else 0
+API_HASH = os.environ.get("TG_API_HASH", "")
+SESSION = os.path.expanduser(
+    os.environ.get("TG_SESSION", "~/.fabella/fabella.session")
 )
 BRIDGE_PORT = int(os.environ.get("TG_BRIDGE_PORT", "8086"))
 WEB_PORT = int(os.environ.get("TG_WEB_PORT", "8087"))
-# Chats permitidos: Saved Messages (siempre) + el chat de your bot (id YOUR_CHAT_ID,
-# el antiguo bot de BotFather — el userbot responde ahí como si fuera el bot)
-# + extras vía TG_ALLOWED_CHATS (usernames o ids separados por coma)
-_BOT_CHAT = os.environ.get("TG_BOT_CHAT_ID", "YOUR_CHAT_ID")
-ALLOWED_CHATS = [_BOT_CHAT] + [c.strip().lower() for c in os.environ.get("TG_ALLOWED_CHATS", "").split(",") if c.strip()]
+# Allowed chats: Saved Messages (always, handled separately) + extras via
+# TG_BOT_CHAT_ID (one id, e.g. an old bot chat) and TG_ALLOWED_CHATS
+# (comma-separated usernames or ids).
+_BOT_CHAT = os.environ.get("TG_BOT_CHAT_ID", "").strip()
+ALLOWED_CHATS = ([_BOT_CHAT] if _BOT_CHAT else []) + [
+    c.strip().lower() for c in os.environ.get("TG_ALLOWED_CHATS", "").split(",") if c.strip()
+]
 
 if not API_ID or not API_HASH:
-    print("ERROR: TG_API_ID y TG_API_HASH son obligatorios (my.telegram.org → API development tools)")
+    print("ERROR: set TG_API_ID and TG_API_HASH — create your own app at https://my.telegram.org")
+    print("       Do NOT use the credentials of official clients (ban risk).")
     sys.exit(1)
 
 client = TelegramClient(SESSION, API_ID, API_HASH)
 loop = None
 
-# ── Token de la interfaz web (se genera la primera vez) ──────────────────────
-TOKEN_PATH = os.path.expanduser("~/.fabella/data/fabella_token.txt")
+# ── Web console token (auto-generated on first run) ──────────────────────────
+TOKEN_PATH = os.path.expanduser(os.environ.get("TG_TOKEN_PATH", "~/.fabella/fabella_token.txt"))
 WEB_TOKEN = os.environ.get("TG_WEB_TOKEN", "")
 if not WEB_TOKEN:
     try:
@@ -67,11 +90,12 @@ if not WEB_TOKEN:
     except Exception as e:
         print(f"[fabella] warn: token web no disponible ({e}) — /api/* sin auth")
 
-# ── Cola de updates (long polling compatible con PTB) ─────────────────────────
+# ── Update queue (PTB-compatible long polling) ────────────────────────────────
 _updates = []
 _updates_lock = threading.Lock()
 _next_update_id = 1
 _me_id = None
+_me_name = "user"
 
 def _push_update(update_dict):
     global _next_update_id
@@ -88,7 +112,7 @@ def _pop_updates(offset):
         out, _updates = _updates, []
     return out
 
-# ── Traducción MTProto → update PTB ───────────────────────────────────────────
+# ── MTProto → PTB update translation ──────────────────────────────────────────
 def _chat_dict(chat):
     cid = chat.id
     title = getattr(chat, "title", None)
@@ -135,22 +159,22 @@ async def _is_allowed(chat):
 @client.on(events.NewMessage)
 async def on_new(event):
     msg = event.message
-    # Ignorar SOLO los ecos del propio userbot (respuestas del gateway)
-    # filtrados por message_id registrado en _send (no por msg.out)
+    # Ignore ONLY the userbot's own echoes (gateway replies), filtered by the
+    # message_id registry kept in _send (not by msg.out)
     if msg.out and msg.id in _sent_ids:
         _sent_ids.pop(msg.id, None)
         return
     try:
         chat = await event.get_chat()
         if not await _is_allowed(chat):
-            print(f"[fabella] ignorado chat {chat.id} (no permitido)")
+            print(f"[fabella] ignored chat {chat.id} (not allowed)")
             return
         print(f"[fabella] ← msg {msg.id} de {chat.id}: {str(msg.message or '')[:60]}")
         _push_update(_msg_to_update(msg, chat))
     except Exception as e:
         print(f"[fabella] error on_new: {e}")
 
-# ── Helpers async para la web ─────────────────────────────────────────────────
+# ── Async helpers for the web console ─────────────────────────────────────────
 def run_async(coro, timeout=30):
     return asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=timeout)
 
@@ -171,7 +195,7 @@ def _history(chat_id, limit=50):
     except Exception as e:
         return {"error": str(e)}
 
-# ── Registro de mensajes enviados por el userbot (para filtrar ecos) ─────────
+# ── Registry of messages sent by the userbot (echo filter) ────────────────────
 _sent_ids = {}  # message_id -> timestamp
 
 def _send(chat_id, text):
@@ -180,18 +204,18 @@ def _send(chat_id, text):
     try:
         sent = run_async(_s())
         _sent_ids[sent.id] = time.time()
-        # limpieza de registros antiguos (>10 min)
+        # prune old entries (>10 min)
         for mid in [k for k, t in _sent_ids.items() if time.time() - t > 600]:
             _sent_ids.pop(mid, None)
         return {"ok": True, "message_id": sent.id}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
-# ── Interfaz web CadencesFaBela ───────────────────────────────────────────────
+# ── Fabella web console ───────────────────────────────────────────────────────
 WEB_HTML = """<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CadencesFaBela</title>
+<title>Fabella</title>
 <style>
 :root{--bg:#0e1116;--card:#161b22;--bord:#2a3140;--txt:#e6e9ef;--dim:#8b93a5;--acc:#4f8cff;--mine:#1f6feb;--theirs:#21262e}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -212,34 +236,34 @@ header .sub{color:var(--dim);font-size:12px}
 #btn:hover{opacity:.9}
 #status{color:var(--dim);font-size:12px;padding:0 18px 6px}
 </style></head><body>
-<header><div class="logo">F</div><div><h1>CadencesFaBela</h1><div class="sub">consola personal · MTProto directo</div></div></header>
-<div id="status">conectando…</div>
+<header><div class="logo">F</div><div><h1>Fabella</h1><div class="sub">personal console · MTProto direct</div></div></header>
+<div id="status">connecting…</div>
 <div id="chat"></div>
-<div id="bar"><input id="inp" placeholder="Escribe a tu consola…" autocomplete="off"><button id="btn">Enviar</button></div>
+<div id="bar"><input id="inp" placeholder="Write to your console…" autocomplete="off"><button id="btn">Send</button></div>
 <script>
 const chat=document.getElementById('chat'),inp=document.getElementById('inp'),st=document.getElementById('status');
 let last=0;
 let tok=localStorage.getItem('fabella_token');
-if(!tok){tok=prompt('Token de CadencesFaBela:');if(tok)localStorage.setItem('fabella_token',tok);}
+if(!tok){tok=prompt('Fabella token:');if(tok)localStorage.setItem('fabella_token',tok);}
 function hdr(){return tok?{'X-Fabella-Token':tok}:{};}
 function add(m){const d=document.createElement('div');d.className='msg '+(m.out?'mine':'theirs');
 const t=document.createElement('span');t.className='t';t.textContent=m.date;
 d.textContent=m.text;d.appendChild(t);chat.appendChild(d);chat.scrollTop=chat.scrollHeight;}
 async function poll(){try{const r=await fetch('/api/history?after='+last,{headers:hdr()});
-if(r.status===401){st.textContent='token incorrecto — recarga y pon el token';return;}
+if(r.status===401){st.textContent='wrong token — reload and enter it again';return;}
 const j=await r.json();
-if(j.ok){st.textContent='conectado · '+j.chat;for(const m of j.messages||[]){if(m.id>last){add(m);last=m.id;}}}
-else st.textContent='error: '+(j.error||'?');}catch(e){st.textContent='sin conexión con el bridge';}
+if(j.ok){st.textContent='connected · '+j.chat;for(const m of j.messages||[]){if(m.id>last){add(m);last=m.id;}}}
+else st.textContent='error: '+(j.error||'?');}catch(e){st.textContent='no connection to the bridge';}
 setTimeout(poll,2000);}
 async function send(){const t=inp.value.trim();if(!t)return;inp.value='';
 const r=await fetch('/api/send',{method:'POST',headers:{'Content-Type':'application/json',...hdr()},body:JSON.stringify({text:t})});
-const j=await r.json();if(!j.ok)st.textContent='error al enviar: '+(j.error||'?');}
+const j=await r.json();if(!j.ok)st.textContent='send error: '+(j.error||'?');}
 inp.addEventListener('keydown',e=>{if(e.key==='Enter')send();});
 document.getElementById('btn').addEventListener('click',send);
 poll();
 </script></body></html>"""
 
-# ── Servidores HTTP ───────────────────────────────────────────────────────────
+# ── HTTP servers ──────────────────────────────────────────────────────────────
 def _ok(result=None):
     return json.dumps({"ok": True, "result": result}, ensure_ascii=False)
 
@@ -263,7 +287,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _check_web_auth(self):
-        """/api/* requiere X-Fabella-Token (si WEB_TOKEN está definido)."""
+        """/api/* requires X-Fabella-Token (when WEB_TOKEN is set)."""
         if not WEB_TOKEN:
             return True
         return self.headers.get("X-Fabella-Token") == WEB_TOKEN
@@ -290,7 +314,7 @@ class Handler(BaseHTTPRequestHandler):
             if isinstance(h, dict) and "error" in h:
                 self._respond(200, json.dumps({"ok": False, "error": h["error"]}))
                 return
-            self._respond(200, json.dumps({"ok": True, "chat": "Mensajes guardados", "messages": h}, ensure_ascii=False))
+            self._respond(200, json.dumps({"ok": True, "chat": "Saved Messages", "messages": h}, ensure_ascii=False))
             return
         m = self._method()
         if not m:
@@ -302,9 +326,9 @@ class Handler(BaseHTTPRequestHandler):
             offset = int(qs.get("offset", ["0"])[0] or 0)
             self._respond(200, _ok(_pop_updates(offset)))
         elif m == "getMe":
-            self._respond(200, _ok({"id": _me_id or 0, "is_bot": False, "first_name": "CadencesFaBela", "username": "cadencesfabella"}))
+            self._respond(200, _ok({"id": _me_id or 0, "is_bot": False, "first_name": "Fabella", "username": "fabella"}))
         elif m == "getChat":
-            self._respond(200, _ok({"id": _me_id or 0, "type": "private", "first_name": "user"}))
+            self._respond(200, _ok({"id": _me_id or 0, "type": "private", "first_name": _me_name}))
         elif m == "getMyCommands":
             self._respond(200, _ok([]))
         else:
@@ -344,7 +368,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._respond(200, _ok({
                     "message_id": r["message_id"],
                     "date": int(time.time()),
-                    "chat": {"id": int(chat_id), "type": "private", "first_name": "user"},
+                    "chat": {"id": int(chat_id), "type": "private", "first_name": _me_name},
                     "text": str(text),
                 }))
             else:
@@ -354,20 +378,21 @@ class Handler(BaseHTTPRequestHandler):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 async def main():
-    global _me_id, loop
+    global _me_id, _me_name, loop
     loop = asyncio.get_running_loop()
     await client.start()
     me = await client.get_me()
     _me_id = me.id
-    print(f"[fabella] ✅ CadencesFaBela conectado como {me.first_name} (id {me.id})")
+    _me_name = me.first_name or "user"
+    print(f"[fabella] ✅ Fabella connected as {me.first_name} (id {me.id})")
 
     srv = ThreadingHTTPServer(("127.0.0.1", BRIDGE_PORT), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    print(f"[fabella] Bot API local  → http://localhost:{BRIDGE_PORT}  (telegram.extra.base_url del gateway)")
+    print(f"[fabella] Local Bot API  → http://localhost:{BRIDGE_PORT}  (point your client's base_url here)")
 
     web = ThreadingHTTPServer(("0.0.0.0", WEB_PORT), Handler)
     threading.Thread(target=web.serve_forever, daemon=True).start()
-    print(f"[fabella] Interfaz web   → http://localhost:{WEB_PORT}  (CadencesFaBela, cualquier dispositivo de la LAN)")
+    print(f"[fabella] Web console    → http://localhost:{WEB_PORT}  (any device on your LAN)")
 
     await client.run_until_disconnected()
 
@@ -375,4 +400,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n[fabella] detenido")
+        print("\n[fabella] stopped")

@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-CadencesFaBela Puente — GET getUpdates del bridge, hermes chat -q (con sesión persistente),
-respuesta vía sendMessage del bridge.
-"""
-import json, os, re, subprocess, sys, time, urllib.request, urllib.parse
+Fabella ⇄ Hermes CLI bridge (optional example integration).
 
-BRIDGE = "http://localhost:8086"
-HERMES = r"C:\Users\<user>\.fabella\hermes-agent\venv\Scripts\hermes.exe"
-TOKEN = "bottest"
-SESSION_ID_FILE = os.path.expanduser("~/.fabella/data/fabella_tg_session.txt")
+Polls the local Fabella bridge (getUpdates) and forwards each message to
+`hermes chat -q` with a persistent session; the reply goes back through the
+bridge's sendMessage. Useful when the gateway's own polling isn't running.
+"""
+import json, os, re, shutil, subprocess, sys, time, urllib.request, urllib.parse
+
+BRIDGE = os.environ.get("FABELLA_BRIDGE_URL", "http://localhost:8086")
+HERMES = os.environ.get("HERMES_BIN") or shutil.which("hermes") or "hermes"
+TOKEN = os.environ.get("FABELLA_BOT_TOKEN", "bottest")
+SESSION_ID_FILE = os.path.expanduser(os.environ.get("FABELLA_TG_SESSION_FILE", "~/.fabella/tg_session.txt"))
 last_update_id = 0
 
 def get_session_id():
@@ -17,6 +20,7 @@ def get_session_id():
     return None
 
 def save_session_id(sid):
+    os.makedirs(os.path.dirname(SESSION_ID_FILE), exist_ok=True)
     open(SESSION_ID_FILE, "w").write(sid)
 
 def get_updates():
@@ -47,9 +51,9 @@ def main():
     global last_update_id
     session_id = get_session_id()
     
-    # Si no tenemos sesión persistente, crear una inicial (con mensaje semilla)
+    # No persistent session yet: create an initial one (with a seed message)
     if not session_id:
-        print("[puente] Creando sesión persistente para Telegram...")
+        print("[bridge] Creating persistent Hermes session...")
         try:
             r = subprocess.run(
                 [HERMES, "chat", "-q", "/start", "--max-turns", "1"],
@@ -61,15 +65,15 @@ def main():
             if m:
                 session_id = m.group(1)
                 save_session_id(session_id)
-                print(f"[puente] Sesión: {session_id}")
+                print(f"[bridge] Session: {session_id}")
             else:
-                print("[puente] No se pudo crear sesión inicial, usando sin persistencia")
+                print("[bridge] Could not create initial session — continuing without persistence")
                 session_id = None
         except Exception as e:
-            print(f"[puente] Error creando sesión inicial: {e}")
+            print(f"[bridge] Error creating initial session: {e}")
             session_id = None
 
-    print("[puente] CadencesFaBela puente activo — vigilando cada 3s...")
+    print("[bridge] Fabella bridge active — polling every 3s...")
     while True:
         try:
             updates = get_updates()
@@ -80,7 +84,7 @@ def main():
                 cid = chat.get("id", 0)
                 if not text or not cid:
                     continue
-                print(f"[puente] ← {cid}: {text[:80]}")
+                print(f"[bridge] ← {cid}: {text[:80]}")
                 try:
                     cmd = [HERMES, "chat", "-q", text, "--max-turns", "1"]
                     if session_id:
@@ -91,31 +95,31 @@ def main():
                         env={**os.environ, "HERMES_NO_TTY": "1"}
                     )
                     out = result.stdout
-                    # Actualizar session_id si cambió
+                    # Update session_id if it changed
                     m = re.search(r"Session:\s+(\S+)", out)
                     if m:
                         session_id = m.group(1)
                         save_session_id(session_id)
-                    # Extraer la respuesta
+                    # Extract the reply
                     lines = [l for l in out.splitlines() if l.strip() and not l.startswith("Session:") and len(l.strip()) > 10]
                     if not lines:
-                        print(f"  [puente] sin respuesta")
+                        print(f"  [bridge] no reply")
                         continue
                     resp_text = lines[-1].strip()
-                    # Si la respuesta contiene "Session:" otra vez, tomar la penúltima
+                    # If the reply contains "Session:" again, take the previous line
                     if "Session:" in resp_text:
                         resp_text = lines[-2].strip() if len(lines) >= 2 else resp_text
                     r = send_via_bridge(cid, resp_text[:2000])
                     if r.get("ok"):
-                        print(f"  [puente] → msg {r['result'].get('message_id','?')} ({len(resp_text)} chars)")
+                        print(f"  [bridge] → msg {r['result'].get('message_id','?')} ({len(resp_text)} chars)")
                     else:
-                        print(f"  [puente] send error: {r.get('error','?')}")
+                        print(f"  [bridge] send error: {r.get('error','?')}")
                 except subprocess.TimeoutExpired:
-                    print("  [puente] hermes chat timeout")
+                    print("  [bridge] hermes chat timed out")
                 except Exception as e:
-                    print(f"  [puente] error: {type(e).__name__}: {e}")
+                    print(f"  [bridge] error: {type(e).__name__}: {e}")
         except Exception as e:
-            print(f"[puente] loop error: {e}")
+            print(f"[bridge] loop error: {e}")
         time.sleep(3)
 
 if __name__ == "__main__":

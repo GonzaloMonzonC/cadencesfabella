@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Watchdog CadencesFaBela: si el bridge (:8086) no responde 2 veces seguidas, lo relanza.
-Silencioso cuando todo OK (patrón no_agent)."""
+"""Fabella watchdog: relaunch the bridge (:8086) if it fails twice in a row.
+Silent when everything is OK."""
 import subprocess, sys, os, time, urllib.request
 
-PY = r"C:\Users\<user>\.fabella\hermes-agent\venv\Scripts\python.exe"
-SCRIPT = r"C:\Users\<user>\.fabella\scripts\bridge_mtproto.py"
+PY = os.environ.get("FABELLA_PY") or sys.executable
+SCRIPT = os.environ.get("FABELLA_BRIDGE_SCRIPT") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "bridge_mtproto.py"
+)
+LOG_PATH = os.path.expanduser(os.environ.get("FABELLA_LOG", "~/.fabella/watchdog.log"))
 
 def check():
     try:
@@ -20,17 +23,19 @@ def main():
             return  # OK → silencioso
         fails += 1
         time.sleep(4)
+    flags = (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == "nt" else 0
     try:
+        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
         subprocess.Popen(
             [PY, SCRIPT],
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            creationflags=flags,
             cwd=os.path.dirname(SCRIPT),
-            stdout=open(os.path.expanduser("~/.fabella/logs/fabella.log"), "a"),
+            stdout=open(LOG_PATH, "a"),
             stderr=subprocess.STDOUT,
         )
-        print(f"🚨 CadencesFaBela CAIDO ({fails} fails) — bridge relanzado {time.strftime('%H:%M')}")
+        print(f"🚨 Fabella bridge DOWN ({fails} fails) — relaunched {time.strftime('%H:%M')}")
     except Exception as e:
-        print(f"🚨 CadencesFaBela caido y NO pude relanzarlo: {e}")
+        print(f"🚨 Fabella bridge down and could not relaunch it: {e}")
 
 if __name__ == "__main__":
     main()
