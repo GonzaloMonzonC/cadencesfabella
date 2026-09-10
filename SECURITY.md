@@ -15,7 +15,7 @@ holds the file can read and send messages as that account. Therefore:
 - if it leaks: Telegram → *Settings → Devices* → terminate the session, delete
   the file, and log in again to create a fresh one.
 
-## What Fabella does and does not protect
+## What CadencesFaBela does and does not protect
 
 - The web console requires `X-Fabella-Token` on `/api/*`; the token is
   generated locally on first run (`~/.fabella/fabella_token.txt`).

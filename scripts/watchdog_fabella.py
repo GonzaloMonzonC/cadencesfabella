@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fabella watchdog: relaunch the bridge (:8086) if it fails twice in a row.
+"""CadencesFaBela watchdog: relaunch the bridge (:8086) if it fails twice in a row.
 Silent when everything is OK."""
 import subprocess, sys, os, time, urllib.request
 
@@ -33,9 +33,9 @@ def main():
             stdout=open(LOG_PATH, "a"),
             stderr=subprocess.STDOUT,
         )
-        print(f"🚨 Fabella bridge DOWN ({fails} fails) — relaunched {time.strftime('%H:%M')}")
+        print(f"🚨 CadencesFaBela bridge DOWN ({fails} fails) — relaunched {time.strftime('%H:%M')}")
     except Exception as e:
-        print(f"🚨 Fabella bridge down and could not relaunch it: {e}")
+        print(f"🚨 CadencesFaBela bridge down and could not relaunch it: {e}")
 
 if __name__ == "__main__":
     main()

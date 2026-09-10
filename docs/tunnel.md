@@ -40,7 +40,7 @@ generic — substitute your own domain and tunnel provider.
    ```
 
 5. *(Recommended)* Protect `console.example.com` with an access policy so only
-   your identity gets through — and keep the Fabella token as a second layer.
+   your identity gets through — and keep the CadencesFaBela token as a second layer.
 
 ## What NOT to do
 

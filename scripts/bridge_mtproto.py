@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Fabella — personal-account Telegram transport: MTProto ⇄ local Bot API.
+CadencesFaBela — personal-account Telegram transport: MTProto ⇄ local Bot API.
 
 Telegram started charging for its cloud Bot API (BotFather sells "requests").
-Fabella uses YOUR OWN account (Telethon/MTProto) as the transport instead:
+CadencesFaBela uses YOUR OWN account (Telethon/MTProto) as the transport instead:
   - Point any Bot API client (e.g. the Hermes gateway) at http://localhost:8086
     and it speaks the usual HTTP Bot API (getUpdates/sendMessage/...) — the
     bridge translates it to MTProto. No BotFather, no api.telegram.org, no fees.
@@ -211,11 +211,11 @@ def _send(chat_id, text):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
-# ── Fabella web console ───────────────────────────────────────────────────────
+# ── CadencesFaBela web console ───────────────────────────────────────────────────────
 WEB_HTML = """<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fabella</title>
+<title>CadencesFaBela</title>
 <style>
 :root{--bg:#0e1116;--card:#161b22;--bord:#2a3140;--txt:#e6e9ef;--dim:#8b93a5;--acc:#4f8cff;--mine:#1f6feb;--theirs:#21262e}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -236,7 +236,7 @@ header .sub{color:var(--dim);font-size:12px}
 #btn:hover{opacity:.9}
 #status{color:var(--dim);font-size:12px;padding:0 18px 6px}
 </style></head><body>
-<header><div class="logo">F</div><div><h1>Fabella</h1><div class="sub">personal console · MTProto direct</div></div></header>
+<header><div class="logo">F</div><div><h1>CadencesFaBela</h1><div class="sub">personal console · MTProto direct</div></div></header>
 <div id="status">connecting…</div>
 <div id="chat"></div>
 <div id="bar"><input id="inp" placeholder="Write to your console…" autocomplete="off"><button id="btn">Send</button></div>
@@ -244,7 +244,7 @@ header .sub{color:var(--dim);font-size:12px}
 const chat=document.getElementById('chat'),inp=document.getElementById('inp'),st=document.getElementById('status');
 let last=0;
 let tok=localStorage.getItem('fabella_token');
-if(!tok){tok=prompt('Fabella token:');if(tok)localStorage.setItem('fabella_token',tok);}
+if(!tok){tok=prompt('CadencesFaBela token:');if(tok)localStorage.setItem('fabella_token',tok);}
 function hdr(){return tok?{'X-Fabella-Token':tok}:{};}
 function add(m){const d=document.createElement('div');d.className='msg '+(m.out?'mine':'theirs');
 const t=document.createElement('span');t.className='t';t.textContent=m.date;
@@ -326,7 +326,7 @@ class Handler(BaseHTTPRequestHandler):
             offset = int(qs.get("offset", ["0"])[0] or 0)
             self._respond(200, _ok(_pop_updates(offset)))
         elif m == "getMe":
-            self._respond(200, _ok({"id": _me_id or 0, "is_bot": False, "first_name": "Fabella", "username": "fabella"}))
+            self._respond(200, _ok({"id": _me_id or 0, "is_bot": False, "first_name": "CadencesFaBela", "username": "cadencesfabella"}))
         elif m == "getChat":
             self._respond(200, _ok({"id": _me_id or 0, "type": "private", "first_name": _me_name}))
         elif m == "getMyCommands":
@@ -384,7 +384,7 @@ async def main():
     me = await client.get_me()
     _me_id = me.id
     _me_name = me.first_name or "user"
-    print(f"[fabella] ✅ Fabella connected as {me.first_name} (id {me.id})")
+    print(f"[fabella] ✅ CadencesFaBela connected as {me.first_name} (id {me.id})")
 
     srv = ThreadingHTTPServer(("127.0.0.1", BRIDGE_PORT), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()

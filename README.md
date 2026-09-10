@@ -1,11 +1,11 @@
-# 🏗️ Fabella
+# 🏗️ CadencesFaBela
 
 **Any Bot API framework, on your own Telegram account.**
 **No BotFather. No cloud Bot API. No per-request fees.**
 
 > 🇪🇸 Versión en español: [README.es.md](README.es.md)
 
-Fabella is a small adapter that emulates a **local Telegram Bot API**
+CadencesFaBela is a small adapter that emulates a **local Telegram Bot API**
 (`getUpdates`, `sendMessage`, `getMe`, …) on top of **MTProto** and your own
 user account ([Telethon](https://github.com/LonamiWebs/Telethon)). Anything
 that already speaks the Bot API — long-polling clients, chat frameworks, agent
@@ -20,7 +20,7 @@ personal-account transport for Cadences Lab's agent stack.
 
 In August 2026 Telegram started selling Bot API "requests" through BotFather —
 quietly. Tokens got throttled, updates stopped arriving, and the failures looked
-like network trouble (timeouts and 502s with no cause in the network). Fabella
+like network trouble (timeouts and 502s with no cause in the network). CadencesFaBela
 removes the dependency: it talks to Telegram the way a person does — MTProto
 with a real account — and re-exposes the convenient Bot API surface locally.
 
@@ -162,7 +162,7 @@ in, but they're worth knowing if you fork):
 
 ## Disclaimer
 
-Fabella is **not affiliated with Telegram**. Operating a userbot may violate
+CadencesFaBela is **not affiliated with Telegram**. Operating a userbot may violate
 Telegram's Terms of Service and can get accounts limited or banned. It is meant
 for personal automation of **your own** account. **Use at your own risk.**
 

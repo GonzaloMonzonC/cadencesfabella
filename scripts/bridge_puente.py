@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Fabella ⇄ Hermes CLI bridge (optional example integration).
+CadencesFaBela ⇄ Hermes CLI bridge (optional example integration).
 
-Polls the local Fabella bridge (getUpdates) and forwards each message to
+Polls the local CadencesFaBela bridge (getUpdates) and forwards each message to
 `hermes chat -q` with a persistent session; the reply goes back through the
 bridge's sendMessage. Useful when the gateway's own polling isn't running.
 """
@@ -73,7 +73,7 @@ def main():
             print(f"[bridge] Error creating initial session: {e}")
             session_id = None
 
-    print("[bridge] Fabella bridge active — polling every 3s...")
+    print("[bridge] CadencesFaBela bridge active — polling every 3s...")
     while True:
         try:
             updates = get_updates()
