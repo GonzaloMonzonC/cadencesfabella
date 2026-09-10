@@ -1,8 +1,10 @@
-# Sesiones y credenciales — NUNCA al repo
+# Sessions and credentials — NEVER commit
 *.session
 *.session-journal
 .env
 *.env
+*.token
+fabella_token.txt
 
 # Python
 __pycache__/
@@ -12,3 +14,4 @@ __pycache__/
 # Runtime
 logs/
 *.log
+data/

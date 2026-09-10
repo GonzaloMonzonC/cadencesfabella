@@ -1,105 +1,182 @@
-# CadencesFaBela 🏗️
+# 🏗️ Fabella
 
-> Consola personal sobre Telegram **sin depender del Bot API cloud de Telegram**.
-> MTProto directo con tu cuenta (Telethon) — ni BotFather, ni Stars, ni peajes.
+**Any Bot API framework, on your own Telegram account.**
+**No BotFather. No cloud Bot API. No per-request fees.**
 
-## Por qué existe
+> 🇪🇸 Versión en español: [README.es.md](README.es.md)
 
-En agosto 2026 Telegram empezó a monetizar el Bot API cloud sin avisar (BotFather
-vende "peticiones", tokens estrangulados en silencio → el gateway dejó de recibir
-mensajes con timeouts y 502 sin causa en la red). CadencesFaBela elimina la
-dependencia: habla por **MTProto con la cuenta personal**, que no tiene ese modelo.
+Fabella is a small adapter that emulates a **local Telegram Bot API**
+(`getUpdates`, `sendMessage`, `getMe`, …) on top of **MTProto** and your own
+user account ([Telethon](https://github.com/LonamiWebs/Telethon)). Anything
+that already speaks the Bot API — long-polling clients, chat frameworks, agent
+gateways — works unmodified once you point its base URL at
+`http://localhost:8086`.
 
-## Arquitectura
+It started as a weekend workaround when Telegram began monetizing the cloud
+Bot API in **August 2026**, and ended up running in production as the
+personal-account transport for Cadences Lab's agent stack.
 
-```
-Telegram (MTProto)                          Gateway Hermes
-      │  Telethon (tu cuenta)                     │
-      ▼                                          │
-┌──────────────────────────┐   Bot API HTTP      │
-│  bridge_mtproto.py       │◄────────────────────┘  telegram.extra.base_url
-│  · Bot API local :8086   │  getUpdates/sendMessage  → http://localhost:8086
-│  · Interfaz web   :8087  │
-└──────────────────────────┘
-      │
-      └── Interfaz web CadencesFaBela (cualquier navegador/teléfono)
-          · GET  /             → chat HTML
-          · GET  /api/history  → hilo de Mensajes guardados
-          · POST /api/send     → enviar al chat
-```
+## Why this exists
 
-- **Chat de trabajo**: "Mensajes guardados" de la cuenta (o `TG_ALLOWED_CHATS`)
-- **El gateway de Hermes no se toca**: solo `hermes config set telegram.extra.base_url http://localhost:8086`
-- **El protocolo Bot API se mantiene**: el adaptador PTB del gateway funciona igual
+In August 2026 Telegram started selling Bot API "requests" through BotFather —
+quietly. Tokens got throttled, updates stopped arriving, and the failures looked
+like network trouble (timeouts and 502s with no cause in the network). Fabella
+removes the dependency: it talks to Telegram the way a person does — MTProto
+with a real account — and re-exposes the convenient Bot API surface locally.
 
-## Componentes
+> There is a real trade-off: a userbot lives in a grey area of Telegram's ToS.
+> Read the [disclaimer](#disclaimer) before deploying. This repo is the honest
+> version of the trick, not a promise of safety.
 
-| Archivo | Función |
-|---------|---------|
-| `scripts/bridge_mtproto.py` | Bridge principal: Bot API local (:8086) + web (:8087) + eventos MTProto |
-| `scripts/login_userbot.py` | Login en 2 pasos (send/sign) → crea la sesión `.session` |
-
-## Config
-
-Env vars del bridge (defaults para Telegram Desktop públicas):
+## Architecture
 
 ```
-TG_API_ID=YOUR_API_ID                # → reemplazar con app propia de my.telegram.org
-TG_API_HASH=YOUR_API_HASH
-TG_SESSION=~/.fabella/data/telegram_userbot.session
-TG_BRIDGE_PORT=8086
-TG_WEB_PORT=8087
-TG_ALLOWED_CHATS=             # vacío = solo Saved Messages
+Telegram (MTProto, your account)          Any Bot API client
+      │  Telethon                              │  HTTP (Bot API)
+      ▼                                        ▼
+┌─────────────────────────────────────────────────────┐
+│  scripts/bridge_mtproto.py                          │
+│   · local Bot API  :8086  (getUpdates/sendMessage)  │
+│   · web console    :8087  (chat UI + token auth)    │
+└─────────────────────────────────────────────────────┘
 ```
 
-## Arranque
+- **Default working chat**: Saved Messages of your account (extra chats via
+  `TG_ALLOWED_CHATS`).
+- **The client doesn't change**: only its base URL
+  (`http://localhost:8086`).
+
+## Quickstart (5 minutes)
+
+### 0. Requirements
+
+- Python 3.10+, `pip install telethon`
+- **Your own** API credentials from
+  [my.telegram.org](https://my.telegram.org) → *API development tools*
+
+> ⚠️ Do **not** use the credentials of official clients (or ones copied from a
+> tutorial) — that is against Telegram's ToS and can get your account banned.
+> Creating your own app is free and takes a minute.
+
+### 1. Configure
 
 ```bash
-# 1. Login (una vez): te llega un código a tu móvil
-python login_userbot.py send +34XXXXXXXXX   # → código
-python login_userbot.py sign +34XXXXXXXXX <codigo>
-
-# 2. Bridge
-python bridge_mtproto.py
-
-# 3. Gateway apuntando al bridge
-hermes config set telegram.extra.base_url http://localhost:8086
-hermes config set telegram.extra.base_file_url http://localhost:8086
-
-# 4. Consola web
-#   local: http://localhost:8087
-#   externo: https://console.example.com (tunnel l13, ver docs/tunnel.md)
+cp .env.example .env    # fill in TG_API_ID / TG_API_HASH (or just export them)
 ```
 
-## Tunnel externo
+### 2. Log in (two steps)
 
-- **OPERATIVO**: https://console.example.com → localhost:8087 (200 verificado)
-- CNAME `console.example.com` → tunnel `vm-api` (config.yml del servicio ya lo incluye)
-- Proceso de usuario de respaldo: `cloudflared tunnel --config config.yml run` (mismo tunnel, cubre los 3 hostnames)
-- vm-api/poli-api siguen en sus rutas reales (/ddp/health, /health) — la raíz `/` de ambos da 404 (no tienen ruta raíz, normal)
+```bash
+python scripts/login_userbot.py send +34XXXXXXXXX
+# → a login code arrives in your Telegram app
+python scripts/login_userbot.py sign +34XXXXXXXXX <code>
+```
 
-## Privacidad / Seguridad
+This creates the **session file** (`~/.fabella/fabella.session` by default).
+Treat it like a password: it grants access to the account.
 
-- La sesión `.session` y los scripts viven en local (`~/.fabella/data/`)
-- El bridge escucha solo en 127.0.0.1 para el Bot API; la web en 0.0.0.0 (LAN) — el tunnel externo es el acceso remoto
-- La web no tiene auth: **no exponer :8087 directo a internet** salvo detrás del tunnel con control (pendiente: añadir token simple a /api/*)
+### 3. Run the bridge
 
-## Roadmap
+```bash
+python scripts/bridge_mtproto.py
+```
 
-- [x] Userbot MTProto operativo (reemplaza Bot API cloud)
-- [x] Interfaz web CadencesFaBela (:8087) + tunnel
-- [ ] App propia en my.telegram.org (api_id/api_hash propios) cuando pase el cooldown
-- [ ] Auth en la web (token en /api/*)
-- [ ] Watchdog del bridge (cron)
-- [ ] Multi-chat configurable por contacto
+- Local Bot API → `http://localhost:8086`
+- Web console → `http://localhost:8087` (token-protected)
 
-## Versiones estables
+### 4. Point your framework at it
 
-| Fecha | Versión | Estado | Notas |
-|---|---|---|---|
-| 2026-08-05 | v0.4 | ✅ **ESTABLE** | Fix mensajes web→gateway (inyección de update en /api/send). Bridge sincronizado con `~/.fabella/scripts/bridge_mtproto.py`. Telegram canal principal verificado de punta a punta (entrada + respuesta en 13.7s). |
-| 2026-08-04 | v0.3 | ✅ estable | Bug filtro anti-eco diagnosticado (pendiente fix) |
-| 2026-08-01 | v0.2 | ✅ estable | Interfaz web + tunnel operativos |
-| 2026-07-28 | v0.1 | ✅ estable | Userbot MTProto inicial |
+- **python-telegram-bot**:
+  `.base_url("http://localhost:8086/bot")` in the builder (the token segment
+  is opaque to the bridge).
+- **Hermes Agent gateway**:
+  ```bash
+  hermes config set telegram.extra.base_url http://localhost:8086
+  hermes config set telegram.extra.base_file_url http://localhost:8086
+  ```
+  and set `HERMES_TELEGRAM_DISABLE_FALLBACK_IPS=1` — otherwise the fallback
+  transport rewrites `localhost` to real Telegram IPs and never reaches the
+  bridge.
+- Anything else that speaks `getUpdates` / `sendMessage`.
 
-**Regla de oro** (2026-08-05): el bridge lo gestiona SOLO el watchdog (`watchdog_fabella.py`). No lanzar bridges a mano (duplica procesos y desincroniza la cola de updates). El gateway de Hermes NO se reinicia a la ligera mientras la GUI esté abierta (la GUI lanza el suyo → compiten → muertes sin traceback).
+## Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TG_API_ID` / `TG_API_HASH` | *(required)* | **your** app credentials — https://my.telegram.org |
+| `TG_SESSION` | `~/.fabella/fabella.session` | session file path |
+| `TG_BRIDGE_PORT` | `8086` | local Bot API port |
+| `TG_WEB_PORT` | `8087` | web console port |
+| `TG_ALLOWED_CHATS` | *(empty)* | extra chats the userbot answers (ids or usernames, comma-separated). Empty = Saved Messages only |
+| `TG_BOT_CHAT_ID` | *(empty)* | one extra chat id kept allowed (e.g. an old bot chat you want answered) |
+| `TG_WEB_TOKEN` | auto | token required by the console API (`/api/*`); auto-generated on first run |
+| `TG_TOKEN_PATH` | `~/.fabella/fabella_token.txt` | where that token is stored |
+
+## What it is / what it is NOT
+
+**It is:** a protocol adapter. Bot API on one side, MTProto on the other.
+Frameworks don't change; only the base URL does.
+
+**It is NOT:**
+
+- official, or affiliated with Telegram in any way;
+- a way to avoid bans — userbots are a grey area, and automation can get
+  accounts limited;
+- a complete Bot API implementation: text messages work end-to-end; media is
+  placeholder (`[media]`), and most optional parameters (keyboards, inline
+  modes, webhooks — it's long-polling only) are not implemented.
+
+## Components
+
+| File | Role |
+|---|---|
+| `scripts/bridge_mtproto.py` | the bridge: local Bot API + web console + MTProto events |
+| `scripts/login_userbot.py` | two-step login → creates the session file |
+| `scripts/watchdog_fabella.py` | optional: relaunch the bridge if it stops answering |
+| `scripts/bridge_puente.py` | optional example: poll the bridge and forward messages to `hermes chat` when the gateway's own polling isn't running |
+
+## Notes from the field
+
+Small, non-obvious things we learned running this in production (they're baked
+in, but they're worth knowing if you fork):
+
+- **Anti-echo must filter by `message_id`, not `msg.out`.** Messages sent from
+  your phone are `out=True` too (same account, another session) — filtering by
+  `out` swallows real messages. The bridge keeps a registry of its own sent ids
+  and ignores only those.
+- **Chat allowlists need id *and* username.** Chats with a username don't match
+  their numeric id.
+- **PTB posts everything.** If your framework initializes fine and then never
+  polls, check what your bridge answers on `POST getMe` — some clients need the
+  reconnect path to start polling.
+- **Duplicates desync the update queue.** Let the watchdog own the lifecycle;
+  don't launch a second bridge by hand.
+
+## Security
+
+- The **session file is the account**: keep it out of git (it's gitignored).
+- The Bot API port binds to `127.0.0.1`; the web console binds `0.0.0.0` and
+  requires `X-Fabella-Token` on `/api/*`. Don't expose it raw — put a token and
+  a tunnel (or a private network) in front of it. See
+  [SECURITY.md](SECURITY.md).
+
+## Disclaimer
+
+Fabella is **not affiliated with Telegram**. Operating a userbot may violate
+Telegram's Terms of Service and can get accounts limited or banned. It is meant
+for personal automation of **your own** account. **Use at your own risk.**
+
+## Status
+
+**v0.4 stable** (August 2026). See [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+Part of the [Cadences Lab](https://github.com/GonzaloMonzonC) open toolkit:
+[lumen-protocol](https://github.com/GonzaloMonzonC/lumen-protocol)
+(protocol · PDB · MVM) and the **tríada A·I·E** of reference agents —
+[Astrid](https://github.com/GonzaloMonzonC/astrid) *(evidence)* ·
+[Iris](https://github.com/GonzaloMonzonC/iris) *(hypotheses)* ·
+[Elena](https://github.com/GonzaloMonzonC/elena) *(decision)*.
