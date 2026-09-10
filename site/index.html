@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>CadencesFaBela — el Bot API de Telegram sobre tu propia cuenta</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="description" content="Guía y herramienta: cómo correr cualquier código del Bot API (getUpdates, sendMessage…) sobre una cuenta real de Telegram. Sin BotFather, sin coste por petición. MIT, 630 líneas, una dependencia.">
+<meta property="og:title" content="CadencesFaBela — el Bot API de Telegram sobre tu propia cuenta">
+<meta property="og:description" content="El mismo código Bot API, sin BotFather y sin pagar por petición. MIT.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --accent: #22d3ee;
+  --neural: #a855f7;
+  --blue: #3b82f6;
+  --red: #f87171;
+  --green: #34d399;
+  --text-primary: #f3f4f6;
+  --text-secondary: #d1d5db;
+  --text-muted: #9ca3af;
+  --text-faint: #6b7280;
+  --card: #111118;
+  --border: #1a1a24;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+.bg-grid {
+  position: fixed; inset:0; z-index:0; pointer-events:none;
+  background-image: linear-gradient(to right, #1a1a24 1px, transparent 1px), linear-gradient(to bottom, #1a1a24 1px, transparent 1px);
+  background-size: 4rem 4rem;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 20%, transparent 75%);
+}
+.orb { position:fixed; border-radius:50%; filter:blur(120px); z-index:0; pointer-events:none; opacity:.05; }
+.orb-a { width:480px; height:480px; background:var(--accent); top:-120px; left:-80px; }
+.orb-b { width:420px; height:420px; background:var(--neural); bottom:-100px; right:-60px; }
+.wrap { position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:0 24px; }
+
+/* ── nav ── */
+nav { position:sticky; top:0; z-index:50; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); background:rgba(10,10,15,.72); border-bottom:1px solid var(--border); }
+.nav-in { max-width:1080px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; gap:16px; }
+.logo { font-family:'JetBrains Mono',monospace; font-weight:600; font-size:15px; letter-spacing:.06em; color:var(--text-primary); text-decoration:none; white-space:nowrap; }
+.logo b { color:var(--accent); }
+.nav-links { margin-left:auto; display:flex; gap:22px; align-items:center; }
+.nav-links a { color:var(--text-muted); text-decoration:none; font-size:14px; font-weight:500; transition:color .25s; white-space:nowrap; }
+.nav-links a:hover { color:var(--accent); }
+.nav-cta { background:var(--accent); color:#0a0a0f !important; font-weight:600; padding:8px 16px; border-radius:10px; box-shadow:0 4px 20px rgba(34,211,238,.25); transition:transform .3s cubic-bezier(.4,0,.2,1), box-shadow .3s; }
+.nav-cta:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(34,211,238,.35); color:#0a0a0f !important; }
+@media (max-width:640px){ .nav-links .nl { display:none; } .nav-in { padding:12px 16px; } }
+
+/* ── hero ── */
+.hero { padding:110px 0 80px; text-align:center; }
+.tag {
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent); border:1px solid rgba(34,211,238,.25); background:rgba(34,211,238,.06);
+  padding:6px 14px; border-radius:999px; margin-bottom:26px;
+}
+.hero h1 {
+  font-size: clamp(32px, 6vw, 56px); line-height:1.08; font-weight:800; letter-spacing:-.02em;
+  color:var(--text-primary); margin-bottom:22px; max-width:900px; margin-left:auto; margin-right:auto;
+}
+.hero h1 .grad {
+  background:linear-gradient(92deg, var(--accent), var(--blue) 55%, var(--neural));
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+.hero p.lead { max-width:660px; margin:0 auto 36px; font-size:18px; color:var(--text-muted); }
+.hero .cta-row { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+.btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:14px 26px; border-radius:12px; font-size:16px; font-weight:600; text-decoration:none;
+  transition:transform .3s cubic-bezier(.4,0,.2,1), box-shadow .3s, background .3s;
+}
+.btn-primary { background:var(--accent); color:#0a0a0f; box-shadow:0 8px 30px rgba(34,211,238,.25); }
+.btn-primary:hover { transform:translateY(-2px); box-shadow:0 12px 36px rgba(34,211,238,.35); }
+.btn-ghost { border:1px solid var(--border); color:var(--text-secondary); background:rgba(17,17,24,.6); }
+.btn-ghost:hover { border-color:rgba(34,211,238,.4); color:var(--text-primary); transform:translateY(-2px); }
+.hero-stats { margin-top:54px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+.stat {
+  font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.05em;
+  color:var(--text-faint); border:1px solid var(--border); background:rgba(17,17,24,.55);
+  padding:10px 18px; border-radius:10px;
+}
+.stat b { color:var(--accent); font-weight:600; }
+
+/* ── secciones ── */
+section { padding:78px 0; }
+.sec-head { max-width:720px; margin-bottom:44px; }
+.sec-head .kick {
+  font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--text-faint); display:block; margin-bottom:12px;
+}
+.sec-head h2 { font-size:clamp(26px,4vw,38px); font-weight:700; letter-spacing:-.015em; color:var(--text-primary); margin-bottom:12px; }
+.sec-head p { color:var(--text-muted); font-size:17px; }
+.sec-head p strong { color:var(--text-secondary); }
+
+/* historia */
+.story p { max-width:720px; color:var(--text-secondary); font-size:17px; margin-bottom:18px; }
+.story p .hl { color:var(--text-primary); font-weight:600; }
+.note {
+  max-width:720px; display:flex; gap:12px; align-items:flex-start;
+  background:rgba(248,113,113,.05); border:1px solid rgba(248,113,113,.25); border-radius:14px;
+  padding:16px 18px; margin-top:26px;
+}
+.note .ico { color:var(--red); font-family:'JetBrains Mono',monospace; margin-top:1px; }
+.note p { font-size:14.5px; color:var(--text-secondary); margin:0; }
+.note p b { color:var(--text-primary); }
+
+/* comparativa */
+.versus { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.vs-card {
+  background:rgba(17,17,24,.7); border:1px solid var(--border); border-radius:20px; padding:28px;
+  transition:transform .35s cubic-bezier(.4,0,.2,1), border-color .35s;
+}
+.vs-card:hover { transform:translateY(-4px); }
+.vs-card.hot { border-color:rgba(34,211,238,.35); box-shadow:0 0 0 1px rgba(34,211,238,.12), 0 18px 50px rgba(34,211,238,.08); }
+.vs-badge { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; display:inline-block; padding:5px 12px; border-radius:999px; margin-bottom:16px; }
+.vs-badge.b1 { color:var(--text-muted); border:1px solid var(--border); background:rgba(10,10,15,.5); }
+.vs-badge.b2 { color:var(--accent); border:1px solid rgba(34,211,238,.3); background:rgba(34,211,238,.07); }
+.vs-card h3 { color:var(--text-primary); font-size:20px; font-weight:700; margin-bottom:6px; }
+.vs-card .sub { color:var(--text-faint); font-size:14px; margin-bottom:18px; }
+.vs-list { list-style:none; display:grid; gap:10px; }
+.vs-list li { display:flex; gap:10px; align-items:flex-start; font-size:14.5px; }
+.vs-list li .m { font-family:'JetBrains Mono',monospace; flex:0 0 auto; margin-top:1px; }
+.vs-list li.ok .m { color:var(--green); }
+.vs-list li.no .m { color:var(--red); }
+.vs-list li span { color:var(--text-secondary); }
+.vs-list li span b { color:var(--text-primary); font-weight:600; }
+
+.rule {
+  margin-top:24px; background:rgba(17,17,24,.7); border:1px solid var(--border); border-radius:16px;
+  padding:20px 24px; display:grid; gap:10px;
+}
+.rule .row { display:flex; gap:12px; align-items:baseline; font-size:15px; flex-wrap:wrap; }
+.rule .q { color:var(--text-primary); font-weight:600; }
+.rule .a { color:var(--accent); font-family:'JetBrains Mono',monospace; font-size:13.5px; }
+.rule .a.warm { color:var(--text-muted); }
+
+/* cómo funciona */
+.how { display:grid; grid-template-columns:1.05fr .95fr; gap:44px; align-items:start; }
+.diagram {
+  background:rgba(17,17,24,.7); border:1px solid var(--border); border-radius:20px; padding:26px;
+  font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.7; color:var(--text-muted);
+  overflow-x:auto;
+}
+.diagram .node { border:1px solid var(--border); background:rgba(10,10,15,.6); border-radius:12px; padding:12px 16px; margin:6px 0; }
+.diagram .node b { color:var(--text-primary); font-weight:600; }
+.diagram .node.you b { color:var(--text-primary); }
+.diagram .node.fab { border-color:rgba(34,211,238,.35); }
+.diagram .node.fab b { color:var(--accent); }
+.diagram .node.tg b { color:var(--neural); }
+.diagram .arr { text-align:center; color:var(--text-faint); font-size:12px; line-height:1.5; padding:2px 0; }
+.diagram .arr i { font-style:normal; color:var(--text-faint); }
+.diagram .cmt { color:var(--text-faint); font-size:11.5px; }
+.how-copy p { color:var(--text-secondary); font-size:16px; margin-bottom:16px; }
+.how-copy p b { color:var(--text-primary); }
+.how-copy code { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--accent); background:rgba(34,211,238,.06); border:1px solid rgba(34,211,238,.15); padding:1px 7px; border-radius:7px; }
+.feat { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px; }
+.feat .f { background:rgba(17,17,24,.6); border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
+.feat .f .n { font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:12px; letter-spacing:.1em; display:block; margin-bottom:6px; }
+.feat .f h4 { color:var(--text-primary); font-size:15px; font-weight:600; margin-bottom:4px; }
+.feat .f p { color:var(--text-muted); font-size:13.5px; margin:0; }
+
+/* empezar */
+.term {
+  background:rgba(10,10,15,.85); border:1px solid var(--border); border-radius:18px; overflow:hidden;
+  box-shadow:0 24px 60px rgba(0,0,0,.35);
+}
+.term-bar { display:flex; align-items:center; gap:8px; padding:13px 16px; border-bottom:1px solid var(--border); background:rgba(17,17,24,.7); }
+.dotb { width:11px; height:11px; border-radius:50%; }
+.dotb.r { background:#f87171; } .dotb.y { background:#fbbf24; } .dotb.g { background:#34d399; }
+.term-title { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-faint); margin-left:8px; }
+.copy-btn {
+  margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent);
+  background:rgba(34,211,238,.07); border:1px solid rgba(34,211,238,.25); border-radius:9px;
+  padding:6px 14px; cursor:pointer; transition:background .25s, transform .25s;
+}
+.copy-btn:hover { background:rgba(34,211,238,.14); transform:translateY(-1px); }
+.term pre {
+  padding:22px 20px; font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:1.9;
+  color:var(--text-secondary); overflow-x:auto;
+}
+.term pre .c { color:var(--text-faint); }
+.term pre .p { color:var(--accent); font-weight:600; }
+.term pre .ok { color:var(--green); }
+.start-chips { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+.start-chips .st { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-faint); border:1px solid var(--border); background:rgba(17,17,24,.55); padding:8px 14px; border-radius:10px; }
+.start-chips .st b { color:var(--accent); }
+
+/* qué es / qué no es */
+.isnot { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.in-card { background:rgba(17,17,24,.7); border:1px solid var(--border); border-radius:20px; padding:26px; }
+.in-card h3 { font-family:'JetBrains Mono',monospace; font-size:13px; letter-spacing:.14em; text-transform:uppercase; margin-bottom:18px; }
+.in-card.yes h3 { color:var(--green); }
+.in-card.no h3 { color:var(--red); }
+.in-card ul { list-style:none; display:grid; gap:11px; }
+.in-card li { display:flex; gap:10px; align-items:flex-start; font-size:14.5px; color:var(--text-secondary); }
+.in-card li .m { font-family:'JetBrains Mono',monospace; flex:0 0 auto; margin-top:1px; }
+.in-card.yes li .m { color:var(--green); }
+.in-card.no li .m { color:var(--red); }
+
+/* cta final + footer */
+.final { text-align:center; padding:90px 0 60px; }
+.final h2 { font-size:clamp(26px,4vw,40px); font-weight:800; letter-spacing:-.02em; color:var(--text-primary); margin-bottom:14px; }
+.final p { color:var(--text-muted); max-width:560px; margin:0 auto 30px; font-size:17px; }
+footer { border-top:1px solid var(--border); padding:34px 0 44px; margin-top:40px; }
+.foot { display:flex; gap:18px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+.foot .fl { font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--text-faint); }
+.foot .fl b { color:var(--text-muted); }
+.foot a { color:var(--text-faint); text-decoration:none; font-size:13px; transition:color .25s; }
+.foot a:hover { color:var(--accent); }
+.foot .links { display:flex; gap:18px; flex-wrap:wrap; }
+
+/* reveal */
+.reveal { opacity:0; transform:translateY(18px); transition:opacity .7s cubic-bezier(.4,0,.2,1), transform .7s cubic-bezier(.4,0,.2,1); }
+.reveal.in { opacity:1; transform:none; }
+
+@media (max-width:860px){
+  .versus, .how, .isnot { grid-template-columns:1fr; }
+  .feat { grid-template-columns:1fr; }
+  .hero { padding:88px 0 64px; }
+  section { padding:64px 0; }
+}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="orb orb-a"></div>
+<div class="orb orb-b"></div>
+
+<nav>
+  <div class="nav-in">
+    <a class="logo" href="#top"><b>◆</b> CadencesFaBela</a>
+    <div class="nav-links">
+      <a class="nl" href="#comparativa">BotFather vs cuenta real</a>
+      <a class="nl" href="#como-funciona">Cómo funciona</a>
+      <a class="nl" href="#empezar">Empezar</a>
+      <a class="nav-cta" href="https://github.com/GonzaloMonzonC/cadencesfabella" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <span class="tag">Telegram · MTProto · MIT</span>
+    <h1>El Bot API de Telegram,<br><span class="grad">sobre tu propia cuenta</span></h1>
+    <p class="lead">Fabella traduce el protocolo Bot API (<code style="font-family:'JetBrains Mono',monospace;font-size:14px">getUpdates</code>, <code style="font-family:'JetBrains Mono',monospace;font-size:14px">sendMessage</code>…) al mismo canal que usa la app del móvil, y lo ejecuta con una cuenta normal de Telegram. El mismo código de siempre — python-telegram-bot, tu gateway, curl — sin BotFather y sin pagar por petición.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#empezar">Empezar en 5 minutos ↓</a>
+      <a class="btn btn-ghost" href="https://github.com/GonzaloMonzonC/cadencesfabella" target="_blank" rel="noopener">GitHub · MIT ↗</a>
+    </div>
+    <div class="hero-stats">
+      <span class="stat"><b>MIT</b> · código abierto</span>
+      <span class="stat"><b>630</b> líneas · 4 scripts</span>
+      <span class="stat"><b>1</b> dependencia (Telethon)</span>
+      <span class="stat">Bot API local <b>:8086</b></span>
+    </div>
+  </div>
+</header>
+
+<section id="historia">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="kick">01 · Por qué existe</span>
+      <h2>Telegram empezó a cobrar por el Bot API cloud</h2>
+    </div>
+    <div class="story reveal">
+      <p>En <span class="hl">agosto de 2026</span> Telegram comenzó a vender «peticiones» del Bot API cloud desde BotFather. El efecto en producción se pareció más a una avería que a un cambio de precio: tokens que dejaban de responder, timeouts sin causa en la red, errores que no venían de ningún sitio.</p>
+      <p>Fabella nació como apaño de un fin de semana: si el Bot API cloud se pone caro o caprichoso, <span class="hl">hablamos con Telegram como habla la app del móvil</span> — con una cuenta real — y volvemos a exponer el protocolo cómodo en local. Lo que ya funcionaba, sigue funcionando; solo cambia a quién le preguntas.</p>
+      <div class="note">
+        <span class="ico">⚠</span>
+        <p><b>Sin adornos:</b> automatizar una cuenta de Telegram (un <i>userbot</i>) es zona gris de sus términos de servicio y puede costar una limitación o un ban. Fabella es un experimento honesto, no una promesa de seguridad. Léelo entero antes de decidir — abajo te contamos también lo que <b>no</b> hace.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="comparativa">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="kick">02 · La guía</span>
+      <h2>¿BotFather o cuenta real?</h2>
+      <p>Los dos caminos son legítimos, pero para cosas distintas. La pregunta no es cuál es mejor: es <strong>qué está haciendo tu bot y para quién</strong>.</p>
+    </div>
+    <div class="versus">
+      <div class="vs-card reveal">
+        <span class="vs-badge b1">Bot de BotFather · nube</span>
+        <h3>El bot de toda la vida</h3>
+        <div class="sub">Un bot nuevo, oficial, con su propio nombre y su token.</div>
+        <ul class="vs-list">
+          <li class="ok"><span class="m">✓</span><span>Para <b>bots públicos</b>: tus usuarios, tus grupos, tus clientes.</span></li>
+          <li class="ok"><span class="m">✓</span><span>El bot no es nadie: <b>sin riesgo para cuentas</b>.</span></li>
+          <li class="ok"><span class="m">✓</span><span>El camino oficial, documentado y estable.</span></li>
+          <li class="no"><span class="m">✕</span><span>Paga por petición desde ago-2026: BotFather <b>vende el tráfico</b>.</span></li>
+          <li class="no"><span class="m">✕</span><span>Límites y throttling fuera de tu control.</span></li>
+          <li class="no"><span class="m">✕</span><span>No puede escribirte primero (salvo excepciones).</span></li>
+        </ul>
+      </div>
+      <div class="vs-card hot reveal">
+        <span class="vs-badge b2">Cuenta real · local</span>
+        <h3>Tu cuenta de siempre + Fabella</h3>
+        <div class="sub">Tu cuenta, tu máquina, el mismo protocolo familiar.</div>
+        <ul class="vs-list">
+          <li class="ok"><span class="m">✓</span><span><b>El mismo código Bot API</b>, sin tocarlo: cambia solo la <b>base_url</b> a localhost.</span></li>
+          <li class="ok"><span class="m">✓</span><span><b>Cero coste por petición</b>: hablas como habla la app.</span></li>
+          <li class="ok"><span class="m">✓</span><span>Corre <b>en tu máquina</b>: nada pasa por servidores de terceros.</span></li>
+          <li class="ok"><span class="m">✓</span><span>Tu cuenta puede <b>escribir primero</b> y estar en cualquier chat donde ya esté.</span></li>
+          <li class="no"><span class="m">✕</span><span><b>Zona gris del ToS</b>: automatizar tu cuenta tiene riesgo de limitación.</span></li>
+          <li class="no"><span class="m">✕</span><span><b>No es para bots públicos de terceros</b>: es para lo tuyo.</span></li>
+          <li class="no"><span class="m">✕</span><span>Todavía <b>no cubre el 100%</b> del Bot API (media y teclados, en roadmap).</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="rule reveal">
+      <div class="row"><span class="q">Automatizo MI Telegram</span> <span class="a">→ cuenta real + Fabella</span></div>
+      <div class="row"><span class="q">Un bot para mis usuarios, mi negocio o grupos ajenos</span> <span class="a warm">→ BotFather, sin dudarlo</span></div>
+      <div class="row"><span class="q">¿No estás seguro?</span> <span class="a warm">→ el camino oficial primero</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="como-funciona">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="kick">03 · Bajo el capó</span>
+      <h2>Cómo funciona (en serio)</h2>
+      <p>Tu código cree que habla con un Bot API oficial. Delante tiene un puente local de 630 líneas legibles.</p>
+    </div>
+    <div class="how">
+      <div class="diagram reveal">
+        <div class="node you"><b>Tu código</b> — python-telegram-bot · Hermes · curl</div>
+        <div class="arr">│ Bot API <i>(getUpdates · sendMessage · getMe…)</i><br>▼</div>
+        <div class="node fab"><b>Fabella</b> — 127.0.0.1:8086 <span class="cmt">← tu máquina</span></div>
+        <div class="arr">│ MTProto <i>(Telethon · long-polling)</i><br>▼</div>
+        <div class="node tg"><b>Telegram</b> ⇄ tu cuenta real</div>
+      </div>
+      <div class="how-copy reveal">
+        <p>Compatible <b>sin tocar código</b>: cualquier framework del Bot API funciona apuntando su servidor a <code>http://localhost:8086</code>. El token da igual — el puente no lo valida; el tuyo no sale de casa.</p>
+        <p>Sin webhooks y sin nube propia: <b>solo long-polling</b>, una consola web opcional para chatear desde el navegador, y un watchdog que relanza el puente si se cae (silencioso cuando todo va bien).</p>
+        <div class="feat">
+          <div class="f"><span class="n">01</span><h4>Plug & play</h4><p>Cambia la base_url de tu framework y listo.</p></div>
+          <div class="f"><span class="n">02</span><h4>Consola web :8087</h4><p>Chatea con tu cuenta desde cualquier dispositivo.</p></div>
+          <div class="f"><span class="n">03</span><h4>Cero magia</h4><p>4 scripts, 1 dependencia, todo legible.</p></div>
+          <div class="f"><span class="n">04</span><h4>Filtros honestos</h4><p>Anti-eco y lista de chats permitidos, probados en producción.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="empezar">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="kick">04 · Empezar</span>
+      <h2>De cero a bot en tu cuenta, en 5 minutos</h2>
+      <p>Necesitas Python 3.10+, una cuenta de Telegram y <strong>tu propio</strong> api_id/api_hash (gratis en my.telegram.org, 1 minuto).</p>
+    </div>
+    <div class="term reveal">
+      <div class="term-bar">
+        <span class="dotb r"></span><span class="dotb y"></span><span class="dotb g"></span>
+        <span class="term-title">terminal — bash</span>
+        <button class="copy-btn" id="copyBtn" type="button">📋 Copiar</button>
+      </div>
+      <pre id="termCode"><span class="p">$</span> git clone https://github.com/GonzaloMonzonC/cadencesfabella
+<span class="p">$</span> cd cadencesfabella
+<span class="p">$</span> pip install telethon
+<span class="p">$</span> cp .env.example .env        <span class="c"># pon tu api_id/api_hash (my.telegram.org)</span>
+<span class="p">$</span> python scripts/login_userbot.py send +34XXXXXXXXX
+<span class="p">$</span> python scripts/login_userbot.py sign +34XXXXXXXXX 12345
+<span class="p">$</span> python scripts/bridge_mtproto.py
+<span class="ok">[fabella] ✅ CadencesFaBela connected as &lt;tu nombre&gt; (id …)
+[fabella] Local Bot API  → http://localhost:8086</span></pre>
+    </div>
+    <div class="start-chips reveal">
+      <span class="st"><b>~5 min</b> de setup</span>
+      <span class="st">Python <b>3.10+</b></span>
+      <span class="st"><b>1</b> dependencia</span>
+      <span class="st">corre en <b>tu máquina</b></span>
+    </div>
+    <div class="note reveal" style="margin-top:22px">
+      <span class="ico">⚠</span>
+      <p><b>Usa TU api_id/api_hash</b> (my.telegram.org). No reutilices las credenciales de clientes oficiales que circulan por tutoriales: es motivo de ban y el README te avisa igual. La guía completa paso a paso vive en el repo, junto con los tropiezos reales contados en el CHANGELOG.</p>
+    </div>
+  </div>
+</section>
+
+<section id="que-es">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="kick">05 · Sin letra pequeña</span>
+      <h2>Qué es y qué no es</h2>
+    </div>
+    <div class="isnot">
+      <div class="in-card yes reveal">
+        <h3>✓ Es</h3>
+        <ul>
+          <li><span class="m">✓</span><span>Un puente local Bot API ⇄ Telegram por MTProto. MIT, sin servicios de terceros.</span></li>
+          <li><span class="m">✓</span><span>Compatible con cualquier framework del Bot API apuntado a localhost.</span></li>
+          <li><span class="m">✓</span><span>Pensado para tu propia cuenta y tu propia máquina.</span></li>
+          <li><span class="m">✓</span><span>Código abierto de verdad: lo lees entero en una tarde y lo auditas tú.</span></li>
+        </ul>
+      </div>
+      <div class="in-card no reveal">
+        <h3>✕ No es</h3>
+        <ul>
+          <li><span class="m">✕</span><span>No está afiliado a Telegram ni lo bendice nadie.</span></li>
+          <li><span class="m">✕</span><span>No elimina el riesgo del ToS: automatizar tu cuenta puede costarte un límite o un ban.</span></li>
+          <li><span class="m">✕</span><span>No es un Bot API completo (todavía): texto y flujos base; media y teclados en roadmap.</span></li>
+          <li><span class="m">✕</span><span>No es infraestructura para bots de terceros ni para spam.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="final">
+  <div class="wrap reveal">
+    <h2>El código entero cabe en una tarde de lectura.</h2>
+    <p>Y si montas algo bonito encima, cuéntanoslo. Nació en Cadences Lab resolviendo un problema real y así sigue.</p>
+    <div class="cta-row" style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <a class="btn btn-primary" href="https://github.com/GonzaloMonzonC/cadencesfabella" target="_blank" rel="noopener">Abrir el repo · MIT ↗</a>
+      <a class="btn btn-ghost" href="https://github.com/GonzaloMonzonC/lumen-protocol" target="_blank" rel="noopener">lumen-protocol ↗</a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap foot">
+    <span class="fl"><b>◆ CadencesFaBela</b> — Cadences Lab · MIT · 2026</span>
+    <div class="links">
+      <a href="https://github.com/GonzaloMonzonC/cadencesfabella" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/GonzaloMonzonC/lumen-protocol" target="_blank" rel="noopener">lumen-protocol</a>
+      <a href="https://github.com/GonzaloMonzonC/astrid" target="_blank" rel="noopener">astrid</a>
+      <a href="https://github.com/GonzaloMonzonC/iris" target="_blank" rel="noopener">iris</a>
+      <a href="https://github.com/GonzaloMonzonC/elena" target="_blank" rel="noopener">elena</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ── copy button ──
+(function(){
+  var btn = document.getElementById('copyBtn');
+  var pre = document.getElementById('termCode');
+  if (!btn || !pre) return;
+  btn.addEventListener('click', function(){
+    var text = pre.innerText.replace(/^\$\s?/gm, '').replace(/^\s*\[fabella\].*$/gm, '').trim();
+    function done(){ btn.textContent = '✅ Copiado'; setTimeout(function(){ btn.textContent = '📋 Copiar'; }, 1600); }
+    function fallback(){
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch(e){}
+      document.body.removeChild(ta); done();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else { fallback(); }
+  });
+})();
+
+// ── reveal on scroll ──
+(function(){
+  var els = document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window)) { els.forEach(function(e){ e.classList.add('in'); }); return; }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){ if (en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
+  }, { threshold: 0.12 });
+  els.forEach(function(e){ io.observe(e); });
+})();
+</script>
+</body>
+</html>
