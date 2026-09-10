@@ -4,6 +4,7 @@
 **Sin BotFather. Sin Bot API cloud. Sin pagar por petición.**
 
 > 🇬🇧 English version: [README.md](README.md)
+> 🌐 Guía divulgativa (por qué existe · BotFather vs cuenta real · quickstart): **https://fabella.pages.dev**
 
 CadencesFaBela es un adaptador pequeño que emula una **Bot API local de Telegram**
 (`getUpdates`, `sendMessage`, `getMe`, …) sobre **MTProto** y tu propia cuenta
