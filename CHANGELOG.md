@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) ·
 Versioning: [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-09-11
+
+### Added
+- 🌐 **Landing site — [lafabella.cadences.app](https://lafabella.cadences.app)**: the field
+  guide (ES) — why it exists, BotFather vs. a personal account, quickstart; single-file with
+  OG card and favicon. Linked from both READMEs; repo homepage points to it.
+
 ## [0.4.0] - 2026-08-05
 
 ### Fixed
